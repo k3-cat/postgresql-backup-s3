@@ -7,13 +7,13 @@ Backup and restore PostgreSQL to/from S3 (supports periodic backups and encrypti
 ### Backup
 
 ```sh
-$ docker run -e S3_ACCESS_KEY_ID=key -e S3_SECRET_ACCESS_KEY=secret -e S3_BUCKET=my-bucket -e S3_PREFIX=backup -e POSTGRES_DATABASE=dbname -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_HOST=localhost itbm/postgres-backup-s3
+$ docker run -e S3_ACCESS_KEY_ID=key -e S3_SECRET_KEY=secret -e S3_BUCKET=my-bucket -e S3_PREFIX=backup -e POSTGRES_DATABASE=dbname -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_HOST=localhost itbm/postgres-backup-s3
 ```
 
 ### Restore
 
 ```sh
-$ docker run -e S3_ACCESS_KEY_ID=key -e S3_SECRET_ACCESS_KEY=secret -e S3_BUCKET=my-bucket -e BACKUP_FILE=backup/dbname_0000-00-00T00:00:00Z.sql.gz -e POSTGRES_DATABASE=dbname -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_HOST=localhost -e CREATE_DATABASE=yes itbm/postgres-backup-s3
+$ docker run -e S3_ACCESS_KEY_ID=key -e S3_SECRET_KEY=secret -e S3_BUCKET=my-bucket -e BACKUP_FILE=backup/dbname_0000-00-00T00:00:00Z.dump -e POSTGRES_DATABASE=dbname -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_HOST=localhost -e CREATE_DATABASE=yes itbm/postgres-backup-s3
 ```
 
 Note: When `BACKUP_FILE` is provided, the container automatically runs the restore process instead of backup.
@@ -60,7 +60,7 @@ spec:
           value: ""
         - name: S3_ACCESS_KEY_ID
           value: ""
-        - name: S3_SECRET_ACCESS_KEY
+        - name: S3_SECRET_KEY
           value: ""
         - name: S3_BUCKET
           value: ""
@@ -74,31 +74,29 @@ spec:
 
 ## Environment variables
 
-| Variable             | Default   | Required | Description                                                                                                              |
-|----------------------|-----------|----------|--------------------------------------------------------------------------------------------------------------------------|
-| POSTGRES_DATABASE    |           | Y        | Database you want to backup/restore or 'all' to backup/restore everything                                               |
-| POSTGRES_HOST        |           | Y        | The PostgreSQL host                                                                                                      |
-| POSTGRES_PORT        | 5432      |          | The PostgreSQL port                                                                                                      |
-| POSTGRES_USER        |           | Y        | The PostgreSQL user                                                                                                      |
-| POSTGRES_PASSWORD    |           | Y        | The PostgreSQL password                                                                                                  |
-| POSTGRES_EXTRA_OPTS  |           |          | Extra postgresql options                                                                                                 |
-| S3_ACCESS_KEY_ID     |           | Y        | Your AWS access key                                                                                                      |
-| S3_SECRET_ACCESS_KEY |           | Y        | Your AWS secret key                                                                                                      |
-| S3_BUCKET            |           | Y        | Your AWS S3 bucket path                                                                                                  |
-| S3_PREFIX            | backup    |          | Path prefix in your bucket                                                                                               |
-| S3_REGION            | us-west-1 |          | The AWS S3 bucket region                                                                                                 |
-| S3_ENDPOINT          |           |          | The AWS Endpoint URL, for S3 Compliant APIs such as [minio](https://minio.io)                                            |
-| S3_S3V4              | no        |          | Set to `yes` to enable AWS Signature Version 4, required for [minio](https://minio.io) servers                           |
-| SCHEDULE             |           |          | Backup schedule time, see explainatons below                                                                             |
-| ENCRYPTION_PASSWORD  |           |          | Password to encrypt/decrypt the backup                                                                                   |
-| DELETE_OLDER_THAN    |           |          | Delete old backups, see explanation and warning below                                                                    |
-| USE_CUSTOM_FORMAT    | no        |          | Use PostgreSQL's custom format (-Fc) instead of plain text with compression                                              |
-| COMPRESSION_CMD      | gzip      |          | Command used to compress the backup (e.g. `pigz` for parallel compression) - ignored when USE_CUSTOM_FORMAT=yes          |
-| DECOMPRESSION_CMD    | gunzip -c |          | Command used to decompress the backup (e.g. `pigz -dc` for parallel decompression) - ignored when USE_CUSTOM_FORMAT=yes  |
-| PARALLEL_JOBS        | 1         |          | Number of parallel jobs for pg_restore when using custom format backups                                                  |
-| BACKUP_FILE          |           | Y*       | Required for restore. The path to the backup file in S3, format: S3_PREFIX/filename                                      |
-| CREATE_DATABASE      | no        |          | For restore: Set to `yes` to create the database if it doesn't exist                                                     |
-| DROP_DATABASE        | no        |          | For restore: Set to `yes` to drop the database before restoring (caution: destroys existing data). Use with CREATE_DATABASE=yes to recreate it |
+| Variable            | Default | Required | Description                                                                                                                                    |
+| ------------------- | ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| POSTGRES_DATABASE   |         | Y        | Database you want to backup/restore or 'all' to backup/restore everything                                                                      |
+| POSTGRES_HOST       |         | Y        | The PostgreSQL host                                                                                                                            |
+| POSTGRES_PORT       | 5432    |          | The PostgreSQL port                                                                                                                            |
+| POSTGRES_USER       |         | Y        | The PostgreSQL user                                                                                                                            |
+| POSTGRES_PASSWORD   |         | Y        | The PostgreSQL password                                                                                                                        |
+| POSTGRES_EXTRA_OPTS |         |          | Extra postgresql options                                                                                                                       |
+| S3_ACCESS_KEY_ID    |         | Y        | Your AWS access key                                                                                                                            |
+| S3_SECRET_KEY       |         | Y        | Your AWS secret key                                                                                                                            |
+| S3_BUCKET           |         | Y        | Your AWS S3 bucket path                                                                                                                        |
+| S3_PREFIX           | backup  |          | Path prefix in your bucket                                                                                                                     |
+| S3_REGION           | auto    |          | The AWS S3 bucket region                                                                                                                       |
+| S3_ENDPOINT         |         |          | The AWS Endpoint URL, for S3 Compliant APIs such as [minio](https://minio.io)                                                                  |
+| S3_S3V4             | no      |          | Set to `yes` to enable AWS Signature Version 4, required for [minio](https://minio.io) servers                                                 |
+| SCHEDULE            |         |          | Backup schedule time, see explainatons below                                                                                                   |
+| ENCRYPTION_PASSWORD |         |          | Password to encrypt/decrypt the backup                                                                                                         |
+| DELETE_OLDER_THAN   |         |          | Delete old backups, see explanation and warning below                                                                                          |
+| COMPRESSION_LEVEL   | zstd:3  |          | Paramaters uses for pg_dump -Z                                                                                                                 |
+| PARALLEL_JOBS       | 1       |          | Number of parallel jobs for pg_restore when using custom format backups                                                                        |
+| BACKUP_FILE         |         | Y*       | Required for restore. The path to the backup file in S3, format: S3_PREFIX/filename                                                            |
+| CREATE_DATABASE     | no      |          | For restore: Set to `yes` to create the database if it doesn't exist                                                                           |
+| DROP_DATABASE       | no      |          | For restore: Set to `yes` to drop the database before restoring (caution: destroys existing data). Use with CREATE_DATABASE=yes to recreate it |
 
 ### Automatic Periodic Backups
 
@@ -114,38 +112,28 @@ WARNING: this will delete all files in the S3_PREFIX path, not just those create
 
 ### Encryption
 
-You can additionally set the `ENCRYPTION_PASSWORD` environment variable like `-e ENCRYPTION_PASSWORD="superstrongpassword"` to encrypt the backup. The restore process will automatically detect encrypted backups and decrypt them when the `ENCRYPTION_PASSWORD` environment variable is set correctly. It can be manually decrypted using `openssl aes-256-cbc -d -in backup.sql.gz.enc -out backup.sql.gz`.
+You can additionally set the `ENCRYPTION_PASSWORD` environment variable like `-e ENCRYPTION_PASSWORD="superstrongpassword"` to encrypt the backup. The restore process will automatically detect encrypted backups and decrypt them when the `ENCRYPTION_PASSWORD` environment variable is set correctly. It can be manually decrypted using `gpg -d backup.dump.enc -o backup.dump`.
 
 ### Backup Format and Compression Options
 
-There are two options for backup format:
+All backups are under `PostgreSQL custom format` for:
 
-1. **Plain text format with compression** (default):
-   - Uses plain SQL text output compressed with gzip/pigz
-   - Standard and widely compatible
-
-2. **PostgreSQL custom format**:
-   - Enable with `-e USE_CUSTOM_FORMAT=yes`
-   - Significantly faster than plain text format
-   - Produces smaller backup files (built-in compression)
-   - Supports parallel restoration for faster restores
-   - Allows selective table/schema restoration
-   - Recommended for larger databases
-
-For plain text format, backups are compressed with `gzip` by default. For improved performance on multi-core systems, you can use `pigz` (parallel gzip) instead:
+- Significantly faster than plain text format
+- Produces smaller backup files (built-in compression)
+- Supports parallel restoration for faster restores
+- Allows selective table/schema restoration
+- Recommended for larger databases
 
 ```sh
-$ docker run ... -e COMPRESSION_CMD=pigz ... itbm/postgres-backup-s3
+$ docker run ... -e COMPRESSION_LEVEL='zstd:12' ... itbm/postgres-backup-s3
 
-$ docker run ... -e DECOMPRESSION_CMD="pigz -dc" ... itbm/postgres-backup-s3
+$ docker run ... itbm/postgres-backup-s3
 ```
 
-When using custom format with parallel restore:
+When using parallel restore:
 
 ```sh
-$ docker run ... -e USE_CUSTOM_FORMAT=yes ... itbm/postgres-backup-s3
+$ docker run ... itbm/postgres-backup-s3
 
 $ docker run ... -e PARALLEL_JOBS=4 -e BACKUP_FILE=backup/dbname_0000-00-00T00:00:00Z.dump ... itbm/postgres-backup-s3
 ```
-
-Note: Custom format is not available when using `POSTGRES_DATABASE=all` as pg_dumpall does not support this format.

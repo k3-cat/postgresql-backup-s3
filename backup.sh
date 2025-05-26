@@ -10,8 +10,8 @@ if [ "${S3_ACCESS_KEY_ID}" = "**None**" ]; then
   exit 1
 fi
 
-if [ "${S3_SECRET_ACCESS_KEY}" = "**None**" ]; then
-  echo "You need to set the S3_SECRET_ACCESS_KEY environment variable."
+if [ "${S3_SECRET_KEY}" = "**None**" ]; then
+  echo "You need to set the S3_SECRET_KEY environment variable."
   exit 1
 fi
 
@@ -52,38 +52,23 @@ else
 fi
 
 export AWS_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID
-export AWS_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY
+export AWS_SECRET_ACCESS_KEY=$S3_SECRET_KEY
 export AWS_DEFAULT_REGION=$S3_REGION
 
-export PGPASSWORD=$POSTGRES_PASSWORD
-POSTGRES_HOST_OPTS="-h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER $POSTGRES_EXTRA_OPTS"
 
 echo "Creating dump of ${POSTGRES_DATABASE} database from ${POSTGRES_HOST}..."
 
-BASE_FILENAME=${POSTGRES_DATABASE}_$(date +"%Y-%m-%dT%H:%M:%SZ")
-if [ "$USE_CUSTOM_FORMAT" = "yes" ]; then
-  SRC_FILE=/tmp/dump.dump
-  DEST_FILE=${BASE_FILENAME}.dump
-  if [ "${POSTGRES_DATABASE}" == "all" ]; then
-    echo "ERROR: Custom format (-Fc) is not supported with pg_dumpall."
-    exit 1
-  else
-    pg_dump -Fc $POSTGRES_HOST_OPTS $POSTGRES_DATABASE > $SRC_FILE
-  fi
-else
-  SRC_FILE=/tmp/dump.sql.gz
-  DEST_FILE=${BASE_FILENAME}.sql.gz
-  if [ "${POSTGRES_DATABASE}" == "all" ]; then
-    pg_dumpall $POSTGRES_HOST_OPTS | $COMPRESSION_CMD > $SRC_FILE
-  else
-    pg_dump $POSTGRES_HOST_OPTS $POSTGRES_DATABASE | $COMPRESSION_CMD > $SRC_FILE
-  fi
-fi
+SRC_FILE=/tmp/${POSTGRES_DATABASE}.dump
+DEST_FILE=$(date +"%Y-%m-%dT%H:%M:%SZ").dump
+export PGPASSWORD=$POSTGRES_PASSWORD
+POSTGRES_HOST_OPTS="-h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER $POSTGRES_EXTRA_OPTS"
+
+pg_dump -Fc -Z ${COMPRESSION_LEVEL} $POSTGRES_HOST_OPTS $POSTGRES_DATABASE > $SRC_FILE
 
 
 if [ "${ENCRYPTION_PASSWORD}" != "**None**" ]; then
   >&2 echo "Encrypting ${SRC_FILE}"
-  openssl enc -aes-256-cbc -in $SRC_FILE -out ${SRC_FILE}.enc -k $ENCRYPTION_PASSWORD
+  gpg -c $SRC_FILE -o ${SRC_FILE}.enc --batch --passphrase $ENCRYPTION_PASSWORD
   if [ $? != 0 ]; then
     >&2 echo "Error encrypting ${SRC_FILE}"
   fi
@@ -91,6 +76,7 @@ if [ "${ENCRYPTION_PASSWORD}" != "**None**" ]; then
   SRC_FILE="${SRC_FILE}.enc"
   DEST_FILE="${DEST_FILE}.enc"
 fi
+
 
 echo "Uploading dump to $S3_BUCKET"
 
@@ -116,6 +102,7 @@ if [ "${DELETE_OLDER_THAN}" != "**None**" ]; then
       fi
     done;
 fi
+
 
 echo "SQL backup finished"
 

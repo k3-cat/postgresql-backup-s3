@@ -13,11 +13,11 @@ RUN go mod init github.com/itbm/postgresql-backup-s3 \
 	&& go build -o out/go-cron
 
 FROM alpine:3.21
-LABEL maintainer="ITBM"
+LABEL maintainer="k3-cat"
 
 RUN apk update \
 	&& apk upgrade \
-	&& apk add coreutils postgresql17-client aws-cli openssl pigz \
+	&& apk add coreutils postgresql17-client aws-cli gpg \
 	&& rm -rf /var/cache/apk/*
 
 COPY --from=build /app/out/go-cron /usr/local/bin/go-cron
@@ -29,9 +29,9 @@ ENV POSTGRES_USER **None**
 ENV POSTGRES_PASSWORD **None**
 ENV POSTGRES_EXTRA_OPTS ''
 ENV S3_ACCESS_KEY_ID **None**
-ENV S3_SECRET_ACCESS_KEY **None**
+ENV S3_SECRET_KEY **None**
 ENV S3_BUCKET **None**
-ENV S3_REGION us-west-1
+ENV S3_REGION auto
 ENV S3_PREFIX 'backup'
 ENV S3_ENDPOINT **None**
 ENV S3_S3V4 no
@@ -41,9 +41,7 @@ ENV DELETE_OLDER_THAN **None**
 ENV BACKUP_FILE **None**
 ENV CREATE_DATABASE no
 ENV DROP_DATABASE no
-ENV USE_CUSTOM_FORMAT no
-ENV COMPRESSION_CMD 'gzip'
-ENV DECOMPRESSION_CMD 'gunzip -c'
+ENV COMPRESSION_LEVEL zstd:3
 ENV PARALLEL_JOBS 1
 
 ADD run.sh run.sh
